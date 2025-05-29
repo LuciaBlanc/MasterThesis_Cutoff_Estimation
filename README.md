@@ -1,5 +1,6 @@
 # Assessing a Novel Approach to Cut-off Estimation Using Bootstrapping: A Simulation-based Study
-## Final Master´s Thesis - Data Science UOC
+## Final Master's Thesis - Data Science UOC
+### Lucia Blanc Velázquez
 
 ## Repository contents:
 - **Readme.md:** Description of the project content.
