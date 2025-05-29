@@ -1,0 +1,1223 @@
+---
+pagetitle: "Analysis_2025_01TFMLBlanc"
+title: <!--html_preserve--><table width='100%'><tr><td><!--/html_preserve-->CONFIDENTIAL-NOT MENTION- NOT SPREAD<!--html_preserve--></td><td align='right'><!--/html_preserve-->2025_01TFMLBlanc- Small Scenario - Results Versió 2 <!--html_preserve--></td></tr></table> <!--/html_preserve-->
+subtitle: <!--html_preserve--><h6><!--/html_preserve-->**Statistical report TFM Lucia Blanc**<!--html_preserve--></h6><!--/html_preserve-->
+author:
+- name: "**Research team - ** Lucia Blanc"
+- name: "UOC"
+- name: "**Product - ** Statistical report"
+- name: "**Biostatistics Research Unit HUGTiP-IGTP - ** Lucia Blanc"
+
+date: today
+execute:
+  echo: false
+  warning: false
+  message: false
+format: 
+  html:
+    output-file: 'Analysis_2025_01TFMLBlanc_small_results_v2.html'
+    embed-resources: true
+    toc: true
+    toc_depth: 5
+    toc_float:
+      collapsed: true
+      smooth_scroll: true
+    ##Estil 
+    theme: cosmo 
+    highlight: tango
+    css: markdown.css
+    ###número seccions
+    number-sections: true
+---
+
+```{r}
+#| results: 'hide'
+#| include: FALSE
+
+# #Package renv (to restore package versions):
+# codiR <- 'I:/CTebe/2_Projectes/2025_01TFMLBlanc/3_CodiR'
+# renv::init(codiR) #To generate a copy of the package versions (first time)
+# renv::snapshot(codiR) #To regenerate the copy if we change or update any library (at the end of the analysis)
+# renv::restore(codiR) #To restore the package versions (for the future, we would have to create a project for this)
+
+#Load libraries
+library(kableExtra) 
+library(dplyr) 
+library(tidyr) 
+library(tibble)
+library(purrr)
+library(stringr)
+library(epiR)
+library(captioner) 
+library(lme4) 
+library(sjPlot)
+library(ggplot2)
+library(gtsummary)
+library(gt)
+library(flowchart)
+library(cutpointr)
+library(pROC)
+library(cutpointr)
+library(DescTools)
+library(OptimalCutpoints)
+library(ThresholdROC)
+###############
+
+#Dades
+################
+setwd('I:/CTebe/2_Projectes/2025_01TFMLBlanc')
+dades_ana<-'./2_Dades/2_Analisi'
+Funcions<-'I:/CTebe/3_CodiR/Funcions'
+Themes<-'I:/CTebe/3_CodiR/Themes'
+
+# Enumerate tables and figures
+source(file.path(Funcions, 'captions_en.R'))
+
+#Source themes:
+source(file.path(Themes, 'gtsummary_theme_bru_v2.R'))
+
+#Set the theme
+reset_gtsummary_theme()
+set_gtsummary_theme(theme_bru)
+
+#Read data
+load("I:/CTebe/2_Projectes/2025_01TFMLBlanc/3_CodiR/dades_loop_small_v2.Rdata") 
+
+#Read cutoff
+load("I:/CTebe/2_Projectes/2025_01TFMLBlanc/3_CodiR/method_df_small_v2.Rdata")
+
+```
+
+
+# Results for Small scenario
+
+<!-- ## Cut-off points -->
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# cutoff_median_df <- data.frame(
+#   Method = method_df$Method,
+#   Median = apply(method_df[ , -1], 1, median, na.rm = TRUE)
+# )
+# 
+# cutoff_median_df
+
+
+
+cutoff_mean_df <- data.frame(
+  Method = method_df$Method,
+  Mean = apply(method_df[ , -1], 1, mean, na.rm = TRUE),
+  ci_low = apply(method_df[ , -1], 1, quantile, probs=0.025, na.rm=T),
+  ci_high = apply(method_df[ , -1], 1, quantile, probs=0.975, na.rm=T)
+)
+
+```
+
+
+
+<!-- ## Methods -->
+
+<!-- ### New approach: Expected value -->
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# Bucle 
+metrics_loop <- data.frame()  
+
+for (i in seq_along(dades)) {
+  dades_i <- dades[[i]]
+
+  cutoff_i <- cutoff_mean_df[1, 2]
+  dades_i$y_cat_b <- ifelse(dades_i$y > cutoff_i, "Disease", "Non-disease")
+  
+  tab_b <- table(dades_i$y_cat_b, dades_i$x)
+  
+  if (all(c("Disease", "Non-disease") %in% rownames(tab_b)) && all(c(1, 0) %in% colnames(tab_b))) {
+    tab_b <- tab_b[c("Disease", "Non-disease"), c("1", "0")]
+   
+    x <- diagnostic(tab_b)
+
+  metrics_loop <- rbind(metrics_loop, data.frame(
+      method = "New approach: Expected value",
+      optimal_cutpoint = cutoff_i,
+      sensitivity = x["Sensitivity", "Estim."],
+      specificity = x["Specificity", "Estim."],
+      ppv = x["Pos.Pred.Val.", "Estim."],
+      npv = x["Neg.Pred.Val.", "Estim."],
+      accuracy = x["Accuracy", "Estim."]
+    ))
+  } else {
+    warning(paste("Missings", i))
+  }
+}
+
+
+
+# Métriques
+metricas <- metrics_loop[, c("optimal_cutpoint", "sensitivity", "specificity", "ppv", "npv", "accuracy")]
+
+# Results 
+metrics_boot_expect <- data.frame(
+  method = "New approach: Expected Value",
+  
+  optimal_cutpoint = cutoff_mean_df[1,2],
+  optimal_cutpoint_low = cutoff_mean_df[1,3],
+  optimal_cutpoint_high = cutoff_mean_df[1,4],
+  
+  sensitivity = round(mean(metricas$sensitivity), 3),
+  sensitivity_low = round(quantile(metricas$sensitivity, 0.025), 3),
+  sensitivity_high = round(quantile(metricas$sensitivity, 0.975), 3),
+  
+  specificity = round(mean(metricas$specificity), 3),
+  specificity_low = round(quantile(metricas$specificity, 0.025), 3),
+  specificity_high = round(quantile(metricas$specificity, 0.975), 3),
+  
+  ppv = round(mean(metricas$ppv), 3),
+  ppv_low = round(quantile(metricas$ppv, 0.025), 3),
+  ppv_high = round(quantile(metricas$ppv, 0.975), 3),
+  
+  npv = round(mean(metricas$npv), 3),
+  npv_low = round(quantile(metricas$npv, 0.025), 3),
+  npv_high = round(quantile(metricas$npv, 0.975), 3),
+  
+  accuracy = round(mean(metricas$accuracy), 3),
+  accuracy_low = round(quantile(metricas$accuracy, 0.025), 3),
+  accuracy_high = round(quantile(metricas$accuracy, 0.975), 3)
+)
+
+```
+
+
+
+
+<!-- ### New approach: Maximum density -->
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# Bucle 
+metrics_loop <- data.frame()  
+
+for (i in seq_along(dades)) {
+  dades_i <- dades[[i]]
+
+  cutoff_i <- cutoff_mean_df[2, 2]
+  dades_i$y_cat_b <- ifelse(dades_i$y > cutoff_i, "Disease", "Non-disease")
+  
+  tab_b <- table(dades_i$y_cat_b, dades_i$x)
+  
+  if (all(c("Disease", "Non-disease") %in% rownames(tab_b)) && all(c(1, 0) %in% colnames(tab_b))) {
+    tab_b <- tab_b[c("Disease", "Non-disease"), c("1", "0")]
+   
+    x <- diagnostic(tab_b)
+
+  metrics_loop <- rbind(metrics_loop, data.frame(
+      method = "New approach: Maximum density",
+      optimal_cutpoint = cutoff_i,
+      sensitivity = x["Sensitivity", "Estim."],
+      specificity = x["Specificity", "Estim."],
+      ppv = x["Pos.Pred.Val.", "Estim."],
+      npv = x["Neg.Pred.Val.", "Estim."],
+      accuracy = x["Accuracy", "Estim."]
+    ))
+  } else {
+    warning(paste("Missings", i))
+  }
+}
+
+
+
+# Métriques
+metricas <- metrics_loop[, c("optimal_cutpoint", "sensitivity", "specificity", "ppv", "npv", "accuracy")]
+
+# Results 
+metrics_boot_maxdens <- data.frame(
+  method = "New approach: Maximum density",
+  
+  optimal_cutpoint = cutoff_mean_df[2,2],
+  optimal_cutpoint_low = cutoff_mean_df[2,3],
+  optimal_cutpoint_high = cutoff_mean_df[2,4],
+  
+  sensitivity = round(mean(metricas$sensitivity), 3),
+  sensitivity_low = round(quantile(metricas$sensitivity, 0.025), 3),
+  sensitivity_high = round(quantile(metricas$sensitivity, 0.975), 3),
+  
+  specificity = round(mean(metricas$specificity), 3),
+  specificity_low = round(quantile(metricas$specificity, 0.025), 3),
+  specificity_high = round(quantile(metricas$specificity, 0.975), 3),
+  
+  ppv = round(mean(metricas$ppv), 3),
+  ppv_low = round(quantile(metricas$ppv, 0.025), 3),
+  ppv_high = round(quantile(metricas$ppv, 0.975), 3),
+  
+  npv = round(mean(metricas$npv), 3),
+  npv_low = round(quantile(metricas$npv, 0.025), 3),
+  npv_high = round(quantile(metricas$npv, 0.975), 3),
+  
+  accuracy = round(mean(metricas$accuracy), 3),
+  accuracy_low = round(quantile(metricas$accuracy, 0.025), 3),
+  accuracy_high = round(quantile(metricas$accuracy, 0.975), 3)
+)
+
+
+```
+
+
+
+<!-- ### Youden's J statistic -->
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# Bucle 
+metrics_loop <- data.frame()  
+
+for (i in seq_along(dades)) {
+  dades_i <- dades[[i]]
+
+  cutoff_i <- cutoff_mean_df[3, 2]
+  dades_i$y_cat_b <- ifelse(dades_i$y > cutoff_i, "Disease", "Non-disease")
+  
+  tab_b <- table(dades_i$y_cat_b, dades_i$x)
+  
+  if (all(c("Disease", "Non-disease") %in% rownames(tab_b)) && all(c(1, 0) %in% colnames(tab_b))) {
+    tab_b <- tab_b[c("Disease", "Non-disease"), c("1", "0")]
+   
+    x <- diagnostic(tab_b)
+
+  metrics_loop <- rbind(metrics_loop, data.frame(
+      method = "Youden's J statistic",
+      optimal_cutpoint = cutoff_i,
+      sensitivity = x["Sensitivity", "Estim."],
+      specificity = x["Specificity", "Estim."],
+      ppv = x["Pos.Pred.Val.", "Estim."],
+      npv = x["Neg.Pred.Val.", "Estim."],
+      accuracy = x["Accuracy", "Estim."]
+    ))
+  } else {
+    warning(paste("Missings", i))
+  }
+}
+
+
+
+# Métriques
+metricas <- metrics_loop[, c("optimal_cutpoint", "sensitivity", "specificity", "ppv", "npv", "accuracy")]
+
+# Results 
+metrics_youden <- data.frame(
+  method = "Youden's J statistic",
+  
+  optimal_cutpoint = cutoff_mean_df[3,2],
+  optimal_cutpoint_low = cutoff_mean_df[3,3],
+  optimal_cutpoint_high = cutoff_mean_df[3,4],
+  
+  sensitivity = round(mean(metricas$sensitivity), 3),
+  sensitivity_low = round(quantile(metricas$sensitivity, 0.025), 3),
+  sensitivity_high = round(quantile(metricas$sensitivity, 0.975), 3),
+  
+  specificity = round(mean(metricas$specificity), 3),
+  specificity_low = round(quantile(metricas$specificity, 0.025), 3),
+  specificity_high = round(quantile(metricas$specificity, 0.975), 3),
+  
+  ppv = round(mean(metricas$ppv), 3),
+  ppv_low = round(quantile(metricas$ppv, 0.025), 3),
+  ppv_high = round(quantile(metricas$ppv, 0.975), 3),
+  
+  npv = round(mean(metricas$npv), 3),
+  npv_low = round(quantile(metricas$npv, 0.025), 3),
+  npv_high = round(quantile(metricas$npv, 0.975), 3),
+  
+  accuracy = round(mean(metricas$accuracy), 3),
+  accuracy_low = round(quantile(metricas$accuracy, 0.025), 3),
+  accuracy_high = round(quantile(metricas$accuracy, 0.975), 3)
+)
+
+
+```
+
+
+<!-- ### Euclidean distance -->
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# Bucle 
+metrics_loop <- data.frame()  
+
+for (i in seq_along(dades)) {
+  dades_i <- dades[[i]]
+
+  cutoff_i <- cutoff_mean_df[4, 2]
+  dades_i$y_cat_b <- ifelse(dades_i$y > cutoff_i, "Disease", "Non-disease")
+  
+  tab_b <- table(dades_i$y_cat_b, dades_i$x)
+  
+  if (all(c("Disease", "Non-disease") %in% rownames(tab_b)) && all(c(1, 0) %in% colnames(tab_b))) {
+    tab_b <- tab_b[c("Disease", "Non-disease"), c("1", "0")]
+   
+    x <- diagnostic(tab_b)
+
+  metrics_loop <- rbind(metrics_loop, data.frame(
+      method = "Euclidean distance",
+      optimal_cutpoint = cutoff_i,
+      sensitivity = x["Sensitivity", "Estim."],
+      specificity = x["Specificity", "Estim."],
+      ppv = x["Pos.Pred.Val.", "Estim."],
+      npv = x["Neg.Pred.Val.", "Estim."],
+      accuracy = x["Accuracy", "Estim."]
+    ))
+  } else {
+    warning(paste("Missings", i))
+  }
+}
+
+
+
+# Métriques
+metricas <- metrics_loop[, c("optimal_cutpoint", "sensitivity", "specificity", "ppv", "npv", "accuracy")]
+
+# Results 
+metrics_eucl <- data.frame(
+  method = "Euclidean distance",
+  
+  optimal_cutpoint = cutoff_mean_df[4,2],
+  optimal_cutpoint_low = cutoff_mean_df[4,3],
+  optimal_cutpoint_high = cutoff_mean_df[4,4],
+  
+  sensitivity = round(mean(metricas$sensitivity), 3),
+  sensitivity_low = round(quantile(metricas$sensitivity, 0.025), 3),
+  sensitivity_high = round(quantile(metricas$sensitivity, 0.975), 3),
+  
+  specificity = round(mean(metricas$specificity), 3),
+  specificity_low = round(quantile(metricas$specificity, 0.025), 3),
+  specificity_high = round(quantile(metricas$specificity, 0.975), 3),
+  
+  ppv = round(mean(metricas$ppv), 3),
+  ppv_low = round(quantile(metricas$ppv, 0.025), 3),
+  ppv_high = round(quantile(metricas$ppv, 0.975), 3),
+  
+  npv = round(mean(metricas$npv), 3),
+  npv_low = round(quantile(metricas$npv, 0.025), 3),
+  npv_high = round(quantile(metricas$npv, 0.975), 3),
+  
+  accuracy = round(mean(metricas$accuracy), 3),
+  accuracy_low = round(quantile(metricas$accuracy, 0.025), 3),
+  accuracy_high = round(quantile(metricas$accuracy, 0.975), 3)
+)
+
+
+```
+
+
+<!-- ### Maximum product of Se and Sp -->
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# Bucle 
+metrics_loop <- data.frame()  
+
+for (i in seq_along(dades)) {
+  dades_i <- dades[[i]]
+
+  cutoff_i <- cutoff_mean_df[5, 2]
+  dades_i$y_cat_b <- ifelse(dades_i$y > cutoff_i, "Disease", "Non-disease")
+  
+  tab_b <- table(dades_i$y_cat_b, dades_i$x)
+  
+  if (all(c("Disease", "Non-disease") %in% rownames(tab_b)) && all(c(1, 0) %in% colnames(tab_b))) {
+    tab_b <- tab_b[c("Disease", "Non-disease"), c("1", "0")]
+   
+    x <- diagnostic(tab_b)
+
+  metrics_loop <- rbind(metrics_loop, data.frame(
+      method = "Maximum product of Se and Sp",
+      optimal_cutpoint = cutoff_i,
+      sensitivity = x["Sensitivity", "Estim."],
+      specificity = x["Specificity", "Estim."],
+      ppv = x["Pos.Pred.Val.", "Estim."],
+      npv = x["Neg.Pred.Val.", "Estim."],
+      accuracy = x["Accuracy", "Estim."]
+    ))
+  } else {
+    warning(paste("Missings", i))
+  }
+}
+
+
+
+# Métriques
+metricas <- metrics_loop[, c("optimal_cutpoint", "sensitivity", "specificity", "ppv", "npv", "accuracy")]
+
+# Results 
+metrics_mprod <- data.frame(
+  method = "Maximum product of Se and Sp",
+  
+  optimal_cutpoint = cutoff_mean_df[5,2],
+  optimal_cutpoint_low = cutoff_mean_df[5,3],
+  optimal_cutpoint_high = cutoff_mean_df[5,4],
+  
+  sensitivity = round(mean(metricas$sensitivity), 3),
+  sensitivity_low = round(quantile(metricas$sensitivity, 0.025), 3),
+  sensitivity_high = round(quantile(metricas$sensitivity, 0.975), 3),
+  
+  specificity = round(mean(metricas$specificity), 3),
+  specificity_low = round(quantile(metricas$specificity, 0.025), 3),
+  specificity_high = round(quantile(metricas$specificity, 0.975), 3),
+  
+  ppv = round(mean(metricas$ppv), 3),
+  ppv_low = round(quantile(metricas$ppv, 0.025), 3),
+  ppv_high = round(quantile(metricas$ppv, 0.975), 3),
+  
+  npv = round(mean(metricas$npv), 3),
+  npv_low = round(quantile(metricas$npv, 0.025), 3),
+  npv_high = round(quantile(metricas$npv, 0.975), 3),
+  
+  accuracy = round(mean(metricas$accuracy), 3),
+  accuracy_low = round(quantile(metricas$accuracy, 0.025), 3),
+  accuracy_high = round(quantile(metricas$accuracy, 0.975), 3)
+)
+
+
+
+```
+
+<!-- ### Index of Union -->
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# Bucle 
+metrics_loop <- data.frame()  
+
+for (i in seq_along(dades)) {
+  dades_i <- dades[[i]]
+
+  cutoff_i <- cutoff_mean_df[6, 2]
+  dades_i$y_cat_b <- ifelse(dades_i$y > cutoff_i, "Disease", "Non-disease")
+  
+  tab_b <- table(dades_i$y_cat_b, dades_i$x)
+  
+  if (all(c("Disease", "Non-disease") %in% rownames(tab_b)) && all(c(1, 0) %in% colnames(tab_b))) {
+    tab_b <- tab_b[c("Disease", "Non-disease"), c("1", "0")]
+   
+    x <- diagnostic(tab_b)
+
+  metrics_loop <- rbind(metrics_loop, data.frame(
+      method = "Maximum product of Se and Sp",
+      optimal_cutpoint = cutoff_i,
+      sensitivity = x["Sensitivity", "Estim."],
+      specificity = x["Specificity", "Estim."],
+      ppv = x["Pos.Pred.Val.", "Estim."],
+      npv = x["Neg.Pred.Val.", "Estim."],
+      accuracy = x["Accuracy", "Estim."]
+    ))
+  } else {
+    warning(paste("Missings", i))
+  }
+}
+
+
+
+# Métriques
+metricas <- metrics_loop[, c("optimal_cutpoint", "sensitivity", "specificity", "ppv", "npv", "accuracy")]
+
+# Results 
+metrics_iu <- data.frame(
+  method = "Index of Union",
+  
+  optimal_cutpoint = cutoff_mean_df[6,2],
+  optimal_cutpoint_low = cutoff_mean_df[6,3],
+  optimal_cutpoint_high = cutoff_mean_df[6,4],
+  
+  sensitivity = round(mean(metricas$sensitivity), 3),
+  sensitivity_low = round(quantile(metricas$sensitivity, 0.025), 3),
+  sensitivity_high = round(quantile(metricas$sensitivity, 0.975), 3),
+  
+  specificity = round(mean(metricas$specificity), 3),
+  specificity_low = round(quantile(metricas$specificity, 0.025), 3),
+  specificity_high = round(quantile(metricas$specificity, 0.975), 3),
+  
+  ppv = round(mean(metricas$ppv), 3),
+  ppv_low = round(quantile(metricas$ppv, 0.025), 3),
+  ppv_high = round(quantile(metricas$ppv, 0.975), 3),
+  
+  npv = round(mean(metricas$npv), 3),
+  npv_low = round(quantile(metricas$npv, 0.025), 3),
+  npv_high = round(quantile(metricas$npv, 0.975), 3),
+  
+  accuracy = round(mean(metricas$accuracy), 3),
+  accuracy_low = round(quantile(metricas$accuracy, 0.025), 3),
+  accuracy_high = round(quantile(metricas$accuracy, 0.975), 3)
+)
+
+
+```
+
+
+<!-- ### Cost approach -->
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# Bucle 
+metrics_loop <- data.frame()  
+
+for (i in seq_along(dades)) {
+  dades_i <- dades[[i]]
+
+  cutoff_i <- cutoff_mean_df[7, 2]
+  dades_i$y_cat_b <- ifelse(dades_i$y > cutoff_i, "Disease", "Non-disease")
+  
+  tab_b <- table(dades_i$y_cat_b, dades_i$x)
+  
+  if (all(c("Disease", "Non-disease") %in% rownames(tab_b)) && all(c(1, 0) %in% colnames(tab_b))) {
+    tab_b <- tab_b[c("Disease", "Non-disease"), c("1", "0")]
+   
+    x <- diagnostic(tab_b)
+
+  metrics_loop <- rbind(metrics_loop, data.frame(
+      method = "Cost approach",
+      optimal_cutpoint = cutoff_i,
+      sensitivity = x["Sensitivity", "Estim."],
+      specificity = x["Specificity", "Estim."],
+      ppv = x["Pos.Pred.Val.", "Estim."],
+      npv = x["Neg.Pred.Val.", "Estim."],
+      accuracy = x["Accuracy", "Estim."]
+    ))
+  } else {
+    warning(paste("Missings", i))
+  }
+}
+
+
+
+# Métriques
+metricas <- metrics_loop[, c("optimal_cutpoint", "sensitivity", "specificity", "ppv", "npv", "accuracy")]
+
+# Results 
+metrics_cost <- data.frame(
+  method = "Cost approach",
+  
+  optimal_cutpoint = cutoff_mean_df[7,2],
+  optimal_cutpoint_low = cutoff_mean_df[7,3],
+  optimal_cutpoint_high = cutoff_mean_df[7,4],
+  
+  sensitivity = round(mean(metricas$sensitivity), 3),
+  sensitivity_low = round(quantile(metricas$sensitivity, 0.025), 3),
+  sensitivity_high = round(quantile(metricas$sensitivity, 0.975), 3),
+  
+  specificity = round(mean(metricas$specificity), 3),
+  specificity_low = round(quantile(metricas$specificity, 0.025), 3),
+  specificity_high = round(quantile(metricas$specificity, 0.975), 3),
+  
+  ppv = round(mean(metricas$ppv), 3),
+  ppv_low = round(quantile(metricas$ppv, 0.025), 3),
+  ppv_high = round(quantile(metricas$ppv, 0.975), 3),
+  
+  npv = round(mean(metricas$npv), 3),
+  npv_low = round(quantile(metricas$npv, 0.025), 3),
+  npv_high = round(quantile(metricas$npv, 0.975), 3),
+  
+  accuracy = round(mean(metricas$accuracy), 3),
+  accuracy_low = round(quantile(metricas$accuracy, 0.025), 3),
+  accuracy_high = round(quantile(metricas$accuracy, 0.975), 3)
+)
+
+
+```
+
+
+<!-- ### Misclassification cost -->
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# Bucle 
+metrics_loop <- data.frame()  
+
+for (i in seq_along(dades)) {
+  dades_i <- dades[[i]]
+
+  cutoff_i <- cutoff_mean_df[8, 2]
+  dades_i$y_cat_b <- ifelse(dades_i$y > cutoff_i, "Disease", "Non-disease")
+  
+  tab_b <- table(dades_i$y_cat_b, dades_i$x)
+  
+  if (all(c("Disease", "Non-disease") %in% rownames(tab_b)) && all(c(1, 0) %in% colnames(tab_b))) {
+    tab_b <- tab_b[c("Disease", "Non-disease"), c("1", "0")]
+   
+    x <- diagnostic(tab_b)
+
+  metrics_loop <- rbind(metrics_loop, data.frame(
+      method = "Misclassification cost",
+      optimal_cutpoint = cutoff_i,
+      sensitivity = x["Sensitivity", "Estim."],
+      specificity = x["Specificity", "Estim."],
+      ppv = x["Pos.Pred.Val.", "Estim."],
+      npv = x["Neg.Pred.Val.", "Estim."],
+      accuracy = x["Accuracy", "Estim."]
+    ))
+  } else {
+    warning(paste("Missings", i))
+  }
+}
+
+
+
+# Métriques
+metricas <- metrics_loop[, c("optimal_cutpoint", "sensitivity", "specificity", "ppv", "npv", "accuracy")]
+
+# Results 
+metrics_misscost <- data.frame(
+  method = "Misclassification cost",
+  
+  optimal_cutpoint = cutoff_mean_df[8,2],
+  optimal_cutpoint_low = cutoff_mean_df[8,3],
+  optimal_cutpoint_high = cutoff_mean_df[8,4],
+  
+  sensitivity = round(mean(metricas$sensitivity), 3),
+  sensitivity_low = round(quantile(metricas$sensitivity, 0.025), 3),
+  sensitivity_high = round(quantile(metricas$sensitivity, 0.975), 3),
+  
+  specificity = round(mean(metricas$specificity), 3),
+  specificity_low = round(quantile(metricas$specificity, 0.025), 3),
+  specificity_high = round(quantile(metricas$specificity, 0.975), 3),
+  
+  ppv = round(mean(metricas$ppv), 3),
+  ppv_low = round(quantile(metricas$ppv, 0.025), 3),
+  ppv_high = round(quantile(metricas$ppv, 0.975), 3),
+  
+  npv = round(mean(metricas$npv), 3),
+  npv_low = round(quantile(metricas$npv, 0.025), 3),
+  npv_high = round(quantile(metricas$npv, 0.975), 3),
+  
+  accuracy = round(mean(metricas$accuracy), 3),
+  accuracy_low = round(quantile(metricas$accuracy, 0.025), 3),
+  accuracy_high = round(quantile(metricas$accuracy, 0.975), 3)
+)
+
+
+```
+
+
+<!-- ### Diagnosis Odds Ratio (DOR) -->
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# Bucle 
+metrics_loop <- data.frame()  
+
+for (i in seq_along(dades)) {
+  dades_i <- dades[[i]]
+
+  cutoff_i <- cutoff_mean_df[9, 2]
+  dades_i$y_cat_b <- ifelse(dades_i$y > cutoff_i, "Disease", "Non-disease")
+  
+  tab_b <- table(dades_i$y_cat_b, dades_i$x)
+  
+  if (all(c("Disease", "Non-disease") %in% rownames(tab_b)) && all(c(1, 0) %in% colnames(tab_b))) {
+    tab_b <- tab_b[c("Disease", "Non-disease"), c("1", "0")]
+   
+    x <- diagnostic(tab_b)
+
+  metrics_loop <- rbind(metrics_loop, data.frame(
+      method = "Diagnosis Odds Ratio (DOR)",
+      optimal_cutpoint = cutoff_i,
+      sensitivity = x["Sensitivity", "Estim."],
+      specificity = x["Specificity", "Estim."],
+      ppv = x["Pos.Pred.Val.", "Estim."],
+      npv = x["Neg.Pred.Val.", "Estim."],
+      accuracy = x["Accuracy", "Estim."]
+    ))
+  } else {
+    warning(paste("Missings", i))
+  }
+}
+
+
+
+# Métriques
+metricas <- metrics_loop[, c("optimal_cutpoint", "sensitivity", "specificity", "ppv", "npv", "accuracy")]
+
+# Results 
+metrics_dor <- data.frame(
+  method = "Diagnosis Odds Ratio (DOR)",
+  
+  optimal_cutpoint = cutoff_mean_df[9,2],
+  optimal_cutpoint_low = cutoff_mean_df[9,3],
+  optimal_cutpoint_high = cutoff_mean_df[9,4],
+  
+  sensitivity = round(mean(metricas$sensitivity), 3),
+  sensitivity_low = round(quantile(metricas$sensitivity, 0.025), 3),
+  sensitivity_high = round(quantile(metricas$sensitivity, 0.975), 3),
+  
+  specificity = round(mean(metricas$specificity), 3),
+  specificity_low = round(quantile(metricas$specificity, 0.025), 3),
+  specificity_high = round(quantile(metricas$specificity, 0.975), 3),
+  
+  ppv = round(mean(metricas$ppv), 3),
+  ppv_low = round(quantile(metricas$ppv, 0.025), 3),
+  ppv_high = round(quantile(metricas$ppv, 0.975), 3),
+  
+  npv = round(mean(metricas$npv), 3),
+  npv_low = round(quantile(metricas$npv, 0.025), 3),
+  npv_high = round(quantile(metricas$npv, 0.975), 3),
+  
+  accuracy = round(mean(metricas$accuracy), 3),
+  accuracy_low = round(quantile(metricas$accuracy, 0.025), 3),
+  accuracy_high = round(quantile(metricas$accuracy, 0.975), 3)
+)
+
+
+```
+
+
+<!-- ### Min p-value -->
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+# Bucle 
+metrics_loop <- data.frame()  
+
+for (i in seq_along(dades)) {
+  dades_i <- dades[[i]]
+
+  cutoff_i <- cutoff_mean_df[10, 2]
+  dades_i$y_cat_b <- ifelse(dades_i$y > cutoff_i, "Disease", "Non-disease")
+  
+  tab_b <- table(dades_i$y_cat_b, dades_i$x)
+  
+  if (all(c("Disease", "Non-disease") %in% rownames(tab_b)) && all(c(1, 0) %in% colnames(tab_b))) {
+    tab_b <- tab_b[c("Disease", "Non-disease"), c("1", "0")]
+   
+    x <- diagnostic(tab_b)
+
+  metrics_loop <- rbind(metrics_loop, data.frame(
+      method = "Min p-value",
+      optimal_cutpoint = cutoff_i,
+      sensitivity = x["Sensitivity", "Estim."],
+      specificity = x["Specificity", "Estim."],
+      ppv = x["Pos.Pred.Val.", "Estim."],
+      npv = x["Neg.Pred.Val.", "Estim."],
+      accuracy = x["Accuracy", "Estim."]
+    ))
+  } else {
+    warning(paste("Missings", i))
+  }
+}
+
+
+
+# Métriques
+metricas <- metrics_loop[, c("optimal_cutpoint", "sensitivity", "specificity", "ppv", "npv", "accuracy")]
+
+# Results 
+metrics_minp <- data.frame(
+  method = "Min p-value",
+  
+  optimal_cutpoint = cutoff_mean_df[10,2],
+  optimal_cutpoint_low = cutoff_mean_df[10,3],
+  optimal_cutpoint_high = cutoff_mean_df[10,4],
+  
+  sensitivity = round(mean(metricas$sensitivity), 3),
+  sensitivity_low = round(quantile(metricas$sensitivity, 0.025), 3),
+  sensitivity_high = round(quantile(metricas$sensitivity, 0.975), 3),
+  
+  specificity = round(mean(metricas$specificity), 3),
+  specificity_low = round(quantile(metricas$specificity, 0.025), 3),
+  specificity_high = round(quantile(metricas$specificity, 0.975), 3),
+  
+  ppv = round(mean(metricas$ppv), 3),
+  ppv_low = round(quantile(metricas$ppv, 0.025), 3),
+  ppv_high = round(quantile(metricas$ppv, 0.975), 3),
+  
+  npv = round(mean(metricas$npv), 3),
+  npv_low = round(quantile(metricas$npv, 0.025), 3),
+  npv_high = round(quantile(metricas$npv, 0.975), 3),
+  
+  accuracy = round(mean(metricas$accuracy), 3),
+  accuracy_low = round(quantile(metricas$accuracy, 0.025), 3),
+  accuracy_high = round(quantile(metricas$accuracy, 0.975), 3)
+)
+
+
+```
+
+
+## Comparison table
+
+`r tab_cap("Comparison of Cut-off Methods: Small scenario")`
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+tab_cutoffs_s <- dplyr::bind_rows(
+  metrics_boot_expect |> mutate(method = "New approach: Expected value"),
+  metrics_boot_maxdens |> mutate(method = "New approach: Maximum density"),
+    metrics_minp |> mutate(method = "Min p-value"),
+  metrics_youden |> mutate(method = "Youden's J statistic"),
+  metrics_eucl |> mutate(method = "Euclidean distance"),
+  metrics_mprod |> mutate(method = "Max. product Se*Sp"),
+  metrics_iu |> mutate(method = "Index of Union"),
+  metrics_cost |> mutate(method = "Cost approach"),
+  metrics_misscost |> mutate(method = "Misclassification cost"),
+  metrics_dor |> mutate(method = "log(DOR)")
+)
+
+
+
+# Format CI
+format_ci <- function(value, low, high) {
+  if (is.na(low) | is.na(high)) {
+    return(sprintf("%.2f", value))
+  } else {
+    return(sprintf("%.2f [%.2f; %.2f]", value, low, high))
+  }
+}
+
+# Metrics [CI]
+tab_cutoffs_formatted_s <- tab_cutoffs_s |>
+  mutate(
+    Cutoff = mapply(format_ci, optimal_cutpoint, optimal_cutpoint_low, optimal_cutpoint_high), 
+    Sensitivity = mapply(format_ci, sensitivity, sensitivity_low, sensitivity_high),
+    Specificity = mapply(format_ci, specificity, specificity_low, specificity_high),
+    PPV = mapply(format_ci, ppv, ppv_low, ppv_high),
+    NPV = mapply(format_ci, npv, npv_low, npv_high),
+    Accuracy = mapply(format_ci, accuracy, accuracy_low, accuracy_high
+  )) |>
+  select(
+    Method = method, 
+    Cutoff,
+    Sensitivity,
+    Specificity,
+    PPV,
+    NPV,
+    Accuracy
+  )
+
+#save(tab_cutoffs_formatted_s, file = file.path("I:/CTebe/2_Projectes/2025_01TFMLBlanc/2_Dades/2_Analisi/Small", "tab_cutoffs_moderate_small.Rda"))
+     
+
+# Final comparison table
+library(gt)
+
+tab_cutoffs_formatted_s |>
+  gt()|>
+  tab_header(
+    title = md("**Comparison of Cut-off Methods: Small scenario**")
+  ) |>
+  cols_label(
+    Method = "Method",
+    Cutoff = "Cut-off point [95% CI]",
+    Sensitivity = "Sensitivity [95% CI]",
+    Specificity = "Specificity [95% CI]",
+    PPV = "PPV [95% CI]",
+    NPV = "NPV [95% CI]",
+    Accuracy = "Accuracy [95% CI]"
+  ) |>
+  tab_style(
+    style = cell_text(weight = "bold"),  
+    locations = cells_column_labels(everything())
+  ) |>
+  tab_style(
+    style = cell_text(weight = "bold"),  
+    locations = cells_body(columns = Method)
+  )
+```
+
+
+
+&nbsp; 
+&nbsp; 
+
+## Comparison plots
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+tab_cutoffs_s$method <- factor(tab_cutoffs_s$method, levels = c(
+  "log(DOR)",
+  "Misclassification cost",
+  "Cost approach",
+  "Index of Union",
+  "Max. product Se*Sp",
+  "Euclidean distance",
+  "Youden's J statistic",
+  "Min p-value",
+  "New approach: Maximum density",
+  "New approach: Expected value"), 
+  labels = c(
+  "log(DOR)",
+  "Misclassification cost",
+  "Cost approach",
+  "Index of Union",
+  "Max. product Se*Sp",
+  "Euclidean distance",
+  "Youden's J statistic",
+  "Min p-value",
+  "**New approach: Maximum density**",
+  "**New approach: Expected value**"
+))
+```
+
+### Cut-off points
+`r fig_cap("Comparison of Cut-off point for each method")`
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+tab_cutoffs_cut_s <- tab_cutoffs_s %>%
+  mutate(cutoff_label = sprintf("%.2f (%.2f–%.2f)", optimal_cutpoint, optimal_cutpoint_low, optimal_cutpoint_high))
+
+save(tab_cutoffs_cut_s, file = file.path("I:/CTebe/2_Projectes/2025_01TFMLBlanc/2_Dades/2_Analisi/Small", "tab_cutoffs_cut_s.Rda"))
+   
+
+ggplot(tab_cutoffs_cut_s, aes(x = optimal_cutpoint, y = method)) +
+  geom_point(color = "#ff7f0e", size = 3) +
+  geom_errorbarh(aes(xmin = optimal_cutpoint_low, xmax = optimal_cutpoint_high), height = 0.2) +
+  geom_text(aes(x = optimal_cutpoint + 0.05, label = cutoff_label), position = position_nudge(x = 0.5, y = 0.4), size = 2.5) +
+  expand_limits(x = max(tab_cutoffs$optimal_cutpoint, na.rm = TRUE) + 0.4) +
+  labs(
+     title = md("Cut-off Points by Method: Small scenario"),
+    x = "Estimates for Cut-off points",
+    y = md("Method")
+  ) +
+  theme_minimal(base_size = 13) + 
+  xlim(-3, 5) + 
+  theme(
+    plot.title = element_text(size = 15, face = "bold"),
+    axis.text.y = ggtext::element_markdown()
+  )
+
+
+```
+
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+
+
+### Sensitivity
+`r fig_cap("Comparison of Sensitivity for each method")`
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+tab_cutoffs_se <- tab_cutoffs %>%
+  mutate(sens_label = sprintf("%.2f (%.2f–%.2f)", sensitivity, sensitivity_low, sensitivity_high))
+
+
+ggplot(tab_cutoffs_se, aes(x = sensitivity, y = method)) +
+  geom_point(color = "#1f77b4", size = 3) +
+  geom_errorbarh(aes(xmin = sensitivity_low, xmax = sensitivity_high), height = 0.2) +
+  geom_text(aes(x = sensitivity_high + 0.05, label = sens_label),
+            hjust = -0.25, size = 2.5) +
+  expand_limits(x = max(tab_cutoffs$sensitivity_high, na.rm = TRUE) + 0.4) +
+  labs(
+     title = "Sensitivity (Se) by Method: Small scenario",
+    x = "Estimates for Se",
+    y = "Method"
+  ) +
+  theme_minimal(base_size = 13) + 
+  theme(
+    plot.title = element_text(size = 15, face = "bold"),
+    axis.text.y = ggtext::element_markdown()
+  )
+
+
+```
+
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+
+### Specificity
+`r fig_cap("Comparison of Specificity for each method")`
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+tab_cutoffs_sp <- tab_cutoffs %>%
+  mutate(spec_label = sprintf("%.2f (%.2f–%.2f)", specificity, specificity_low, specificity_high))
+
+
+ggplot(tab_cutoffs_sp, aes(x = specificity, y = method)) +
+  geom_point(color = "#2ca02c", size = 3) +
+  geom_errorbarh(aes(xmin = specificity_low, xmax = specificity_high), height = 0.2) +
+  geom_text(aes(x = specificity_high + 0.05, label = spec_label),
+            hjust = -0.25, size = 2.5) +
+  expand_limits(x = max(tab_cutoffs$specificity_high, na.rm = TRUE) + 0.4) +
+  labs(
+     title = "Specificity(Sp) by Method: Small scenario",
+    x = "Estimates for Sp",
+    y = "Method"
+  ) +
+  theme_minimal(base_size = 13) + 
+  theme(
+    plot.title = element_text(size = 15, face = "bold"),
+    axis.text.y = ggtext::element_markdown()
+  )
+
+
+```
+
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+
+### Positive Predictive Value (PPV)
+`r fig_cap("Comparison of PPV for each method")`
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+tab_cutoffs_ppv <- tab_cutoffs %>%
+  mutate(ppv_label = sprintf("%.2f (%.2f–%.2f)", ppv, ppv_low, ppv_high))
+                              
+ggplot(tab_cutoffs_ppv, aes(x = ppv, y = method)) +
+  geom_point(color = "#d62728", size = 3) +
+  geom_errorbarh(aes(xmin = ppv_low, xmax = ppv_high), height = 0.2) +
+  geom_text(aes(x = ppv_high + 0.05, label = ppv_label),
+            hjust = -0.25, size = 2.5) +
+  expand_limits(x = max(tab_cutoffs$ppv_high, na.rm = TRUE) + 0.4) +
+  labs(
+     title = "Positive Predictive Value (PPV) by Method: Small scenario",
+    x = "Estimates for PPV",
+    y = "Method"
+  ) +
+  theme_minimal(base_size = 13) + xlim(0,1.5) + 
+  theme(
+    plot.title = element_text(size = 11, face = "bold"),
+    axis.text.y = ggtext::element_markdown()
+  )
+
+```
+
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+
+### Negative Predictive Value (NPV)
+`r fig_cap("Comparison of NPV for each method")`
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+tab_cutoffs_npv <- tab_cutoffs %>%
+  mutate(npv_label = sprintf("%.2f (%.2f–%.2f)", npv, npv_low, npv_high))
+
+ggplot(tab_cutoffs_npv, aes(x = npv, y = method)) +
+  geom_point(color = "#9467bd", size = 3) +
+  geom_errorbarh(aes(xmin = npv_low, xmax = npv_high), height = 0.2) +
+  geom_text(aes(x = npv_high + 0.05, label = npv_label),
+            hjust = -0.25, size = 2.5) +
+  expand_limits(x = max(tab_cutoffs$npv_high, na.rm = TRUE) + 0.4) +
+  labs(
+     title = "Negative Predictive Value (NPV) by Method: Small scenario",
+    x = "Estimates for NPV",
+    y = "Method"
+  ) +
+  theme_minimal(base_size = 13) + xlim(0,1.5) + 
+  theme(
+    plot.title = element_text(size = 11, face = "bold"),
+    axis.text.y = ggtext::element_markdown()
+  )
+
+```
+
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+<br>
+
+### Accuracy
+`r fig_cap("Comparison of Accuracy for each method")`
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+tab_cutoffs_acc <- tab_cutoffs %>%
+  mutate(accuracy_label = sprintf("%.2f (%.2f–%.2f)", accuracy, accuracy_low, accuracy_high))
+
+ggplot(tab_cutoffs_acc, aes(x = accuracy, y = method)) +
+  geom_point(color = "#8c564b", size = 3) +
+  geom_errorbarh(aes(xmin = accuracy_low, xmax = accuracy_high), height = 0.2) +
+  geom_text(aes(x = accuracy_high + 0.05, label = accuracy_label),
+            hjust = -0.25, size = 2.5) +
+  expand_limits(x = max(tab_cutoffs$accuracy_high, na.rm = TRUE) + 0.4) +
+  labs(
+    title = "Accuracy by Method: Small scenario",
+    x = "Estimates for Accuracy",
+    y = "Method"
+  ) +
+  theme_minimal(base_size = 13) + 
+  theme(
+    plot.title = element_text(size = 15, face = "bold"),
+    axis.text.y = ggtext::element_markdown()
+  )
+
+
+
+```
