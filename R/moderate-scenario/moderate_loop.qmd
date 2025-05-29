@@ -1,0 +1,1556 @@
+---
+pagetitle: "Analysis_2025_01TFMLBlanc"
+title: <!--html_preserve--><table width='100%'><tr><td><!--/html_preserve-->CONFIDENTIAL-NOT MENTION- NOT SPREAD<!--html_preserve--></td><td align='right'><!--/html_preserve-->2025_01TFMLBlanc- Moderate Scenario Versió 1 <!--html_preserve--></td></tr></table> <!--/html_preserve-->
+subtitle: <!--html_preserve--><h6><!--/html_preserve-->**Statistical report TFM Lucia Blanc**<!--html_preserve--></h6><!--/html_preserve-->
+author:
+- name: "**Research team - ** Lucia Blanc"
+- name: "UOC"
+- name: "**Product - ** Statistical report"
+- name: "**Biostatistics Research Unit HUGTiP-IGTP - ** Lucia Blanc"
+
+date: today
+execute:
+  echo: false
+  warning: false
+  message: false
+format: 
+  html:
+    output-file: 'Analysis_2025_01TFMLBlanc_moderate_v1_loop_v2.html'
+    embed-resources: true
+    toc: true
+    toc_depth: 5
+    toc_float:
+      collapsed: true
+      smooth_scroll: true
+    ##Estil 
+    theme: cosmo 
+    highlight: tango
+    css: markdown.css
+    ###número seccions
+    number-sections: true
+params:
+  report_seed: 05052025
+---
+
+```{r}
+#| results: 'hide'
+#| include: FALSE
+
+# #Package renv (to restore package versions):
+# codiR <- 'I:/CTebe/2_Projectes/2025_01TFMLBlanc/3_CodiR'
+# renv::init(codiR) #To generate a copy of the package versions (first time)
+# renv::snapshot(codiR) #To regenerate the copy if we change or update any library (at the end of the analysis)
+# renv::restore(codiR) #To restore the package versions (for the future, we would have to create a project for this)
+
+#Load libraries
+library(kableExtra) 
+library(dplyr) 
+library(tidyr) 
+library(tibble)
+library(purrr)
+library(stringr)
+library(epiR)
+library(captioner) 
+library(lme4) 
+library(sjPlot)
+library(ggplot2)
+library(gtsummary)
+library(gt)
+library(flowchart)
+library(cutpointr)
+library(pROC)
+library(cutpointr)
+library(DescTools)
+library(OptimalCutpoints)
+library(ThresholdROC)
+###############
+
+#Dades
+################
+setwd('I:/CTebe/2_Projectes/2025_01TFMLBlanc')
+dades_ana<-'./2_Dades/2_Analisi'
+Funcions<-'I:/CTebe/3_CodiR/Funcions'
+Themes<-'I:/CTebe/3_CodiR/Themes'
+
+# Enumerate tables and figures
+source(file.path(Funcions, 'captions_en.R'))
+
+#Source themes:
+source(file.path(Themes, 'gtsummary_theme_bru_v2.R'))
+
+#Set the theme
+reset_gtsummary_theme()
+set_gtsummary_theme(theme_bru)
+#Read data
+# load(file.path(dades_ana, 'data_v1.Rda'))
+
+#Get labels (to restore them if they are lost)
+# labels <- labelled::get_variable_labels(data)
+# data <- data %>%
+#    labelled::set_variable_labels(.labels = labels, .strict = FALSE) #restore labels
+
+#Read label dictionary
+#dictionary <- readxl::read_excel(file.path(dades_ana, 'dictionary.xlsx'))
+
+nboot<- 50
+```
+
+```{r}
+print(params$report_seed)
+```
+
+
+# Objectives
+
+# Methodology
+
+Study variables will be described in tables by study group. Categorical variables will be described by the frequency and percentage of each category. Continuous variables will be described by the mean and standard deviation or by the median and interquantile range, depending on the distribution of the variables.
+
+The conditions of use of the models were validated and, whenever possible, confidence intervals at 95% were calculated. All analyses were performed with the statistical program R version 4.4.0 (2024-06-14) for Windows.
+
+
+# Simulation data
+
+# Normal distribution: Moderate scenario
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+#set.seed(123)
+set.seed(params$report_seed)
+# Paràmetres
+
+n <- 500 # observacions
+mu <- 1  # constant
+sigma <- 1  # sd de l'error
+prev <- 0.1
+
+x <- rbinom(n, 1, 0.1)
+
+
+dades_em <- tibble(x = x) %>%
+  group_by(x) |> 
+  mutate(
+    y = case_when(
+      x == 1 ~ rnorm(n(), mean = mu, sd = sigma),
+      x == 0 ~ rnorm(n(), mean = 0, sd = 1)
+    )
+  )
+
+# Guardar dataframes
+
+# dades <- list()
+# save(dades, file = "dades_loop_moderate_v2.Rdata")
+
+load("dades_loop_moderate_v2.Rdata")
+
+var_seed <- params$report_seed
+
+dades <- dades |> purrr::list_assign(var_seed = dades_em)
+
+names(dades)[names(dades) == "var_seed"] <- var_seed
+
+save(dades, file = "dades_loop_moderate_v2.Rdata")
+
+# Dades simulades
+# head(dades_em)
+
+# tapply(dades_em$y, dades_em$x, mean)
+# tapply(dades_em$y, dades_em$x, sd)
+
+```
+
+
+
+`r tab_cap("Description of data simulation: Moderate scenario")`
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+dades_em |> 
+  dplyr::select(x, y) |> 
+  gtsummary::tbl_summary(
+    type = x ~"categorical",
+        digits = all_continuous() ~ 2)
+
+
+model <- lm(y ~ x,data=dades_em)
+
+tab_model(model,show.se=T)
+```
+
+&nbsp; 
+&nbsp;
+
+
+`r fig_cap("Density comparison plot")`
+```{r echo=FALSE, warning=FALSE, message=FALSE, cache=FALSE}
+
+dades_em$x_c<-factor(dades_em$x,
+                    levels = c(0,1),
+                    labels = c("Non-disease", "Disease"))
+
+dades_em$y_pred<-dades_em$y
+
+d <- dplyr::select(dades_em,c(y_pred, x_c, x))
+d <- filter(d, x_c%in%c("Non-disease", "Disease"))
+d$x_c<-factor(d$x_c, levels = c("Non-disease", "Disease"))
+
+#png(r"(I:\CTebe\2_Projectes\2025_01TFMLBlanc\4_Productes\Presentation\WWW\moderate_density.png)",width = 5000,height = 4000,res = 600)
+
+ggplot(d, aes(y_pred,fill=x_c,color=x_c)) +
+ geom_density(alpha = 0.1) +
+   geom_vline(xintercept = mean(d$y_pred), linetype = "dashed", color = "black", linewidth = 1.2) +
+ geom_vline(xintercept = mean(d$y_pred[d$x_c=="Non-disease"]), linetype = "dashed", color = "red", linewidth = 1.2,alpha = 0.8) +
+ geom_vline(xintercept = mean(d$y_pred[d$x_c=="Disease"]), linetype = "dashed", color = "blue", linewidth = 1.2,alpha = 0.8) +
+ theme_minimal()+labs(x="Predictor")+
+  ggtitle("Density comparison for moderate scenario")+ 
+  guides(fill = guide_legend(title = "Binary outcome"), 
+        legend.background = element_rect(fill = "white"), colour = guide_legend(title = "Binary outcome"))
+      
+```
+&nbsp; 
+&nbsp; 
+
+`r fig_cap("ROC Curve")`
+```{r echo=FALSE, warning=FALSE, message=FALSE, cache=FALSE}
+
+#png(r"(I:\CTebe\2_Projectes\2025_01TFMLBlanc\4_Productes\Presentation\WWW\moderate_roc.png)",width = 5000,height = 4000,res = 600)
+
+myroc <- roc(d$x, d$y_pred, ci=TRUE)
+plot.roc(myroc, main="ROC curve and AUC for moderate scenario", xlim = c(1, 0), lwd=3)
+text(0.4, 0.1, paste0("AUC:", round(auc(myroc), 2),
+                      " [",round(myroc$ci[1],2), ", ",round(myroc$ci[2],2),"]" ))
+```
+
+
+
+&nbsp; 
+&nbsp; 
+
+
+
+
+## Methods
+
+### New approach
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+d_cut <- data.frame(
+  x = as.numeric(d$x),
+  y_pred = as.numeric(d$y_pred)
+)
+```
+
+#### Bootstrapping
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, cache=FALSE}
+
+# Bootstrapping
+#  set.seed(123)
+ boots<-seq(1:nrow(d))
+ p<-c()
+ for(j in 1:nboot){
+   # print(j)
+   llista_s <- sample(boots, replace=T)
+   ds <- d[llista_s,]
+   x_outcome <-quantile(d$y_pred,probs = seq(0,1,0.01),na.rm=T)
+
+   ai <- c()
+   bi <- c()
+   val <- c()
+   hr <- c()
+   p1x <- c()
+   p2x <- c()
+   cind <- c()
+   lr <- c()
+   br <- c()
+   pvalue <- c()
+   voltes <- c()
+   for(i in x_outcome){
+     ds$y <- cut(ds$y_pred, breaks = c(-Inf,i, Inf))
+     if(all(table(ds$y, ds$x)>1)){
+       m <- glm(x~y,data=ds, family=poisson(link = "log"))
+       l <- summary(m)
+       pvalue <- c(pvalue, l$coefficients[2,4])
+       ai <- c(ai,AIC(m))
+       bi <- c(bi, BIC(m))
+       val <- c(val,i)
+       h <- exp(l$coefficients[2,1])
+       p1 <- round(exp(confint(m))[2,1],2)
+       p2 <- round(exp(confint(m))[2,1],2)
+       hr <- c(hr,h)
+       p1x <- c(p1x, p1)
+       p2x <- c(p2x, p2)
+       br <- c(br, BrierScore(m))
+       voltes <- c(voltes, j)
+     }
+   }
+   d3 <- data.frame(voltes, val, hr, p1x,p2x,pvalue,br)
+
+   minim <- min(d3$pvalue[d3$voltes==j])
+   coff <- min(d3[d3$pvalue==minim& d3$voltes==j, "val"])
+    print(coff)
+    p<-rbind(p,coff)
+ }
+
+ p<-as.data.frame(p)
+
+# save(p, file = file.path("I:/CTebe/2_Projectes/2025_01TFMLBlanc/2_Dades/2_Analisi/Moderate", "Moderate_scenario.Rda"))
+# 
+
+
+# load(file="I:/CTebe/2_Projectes/2025_01TFMLBlanc/2_Dades/2_Analisi/Moderate/Moderate_scenario.Rda")
+
+```
+
+&nbsp; 
+
+`r fig_cap("Density function with high-density local maxima")`
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, cache=FALSE}
+funcio_densitat <- density(p$V1)
+pics <- which(diff(sign(diff(funcio_densitat$y))) == -2) + 1
+maximlocal_x <- funcio_densitat$x[pics]
+maximlocal_y <- funcio_densitat$y[pics]
+
+data.frame(valors=round(maximlocal_x,2),densitat=round(maximlocal_y,2))%>%
+  gt()
+  
+
+ggplot(data.frame(x = funcio_densitat$x, y = funcio_densitat$y), aes(x = x, y = y)) +
+  geom_line(color = "blue") +  
+  geom_point(data = data.frame(x = maximlocal_x[maximlocal_y>mean(funcio_densitat$y)],
+                               y = maximlocal_y[maximlocal_y>mean(funcio_densitat$y)]),
+             aes(x = x, y = y), col = "red", pch = 16)+  
+  geom_vline(aes(xintercept=mean(p$V1[p$V1!="Inf"]), color="orange"),show_guide=TRUE)+
+  labs(title = "Density function with high-density local maxima",
+       x = "X-axis",y = "Density")+
+  scale_color_manual("Cut-off", values=c(orange="orange"),labels=c( "E(values)"))+
+  theme_bw()
+```
+
+&nbsp; 
+&nbsp; 
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, cache=FALSE}
+xintercept=mean(p$V1[p$V1!="Inf"])
+
+#construim dicotòmica
+d$y_cat_b <- ifelse(d$y_pred>xintercept, "Positive", "Negative")
+
+#construim la taula
+tab_b <- table(d$y_cat_b, d$x)
+tab_b <- tab_b[c(2,1),c(2,1)]
+x <- diagnostic(tab_b)
+```
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, cache=FALSE}
+y <- epiR::epi.tests(tab_b)
+y
+```
+
+&nbsp; 
+
+The diagnostic indices taking `r round(xintercept,3)` as the cut-off point are as follows 
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, cache=FALSE}
+kable(round(x[c(1:4,9),],3), caption = "Predictor", align = "l") |>
+ kable_styling(bootstrap_options = c("striped","hover"))
+
+### Matriz de confusión (paquete caret) - https://rdrr.io/cran/caret/man/confusionMatrix.html
+d$y_catfn_b <- factor(d$y_cat_b,
+                   levels=c("Positive", "Negative"),
+                   labels=c("Non-disease", "Disease"))
+machine_matriz <- caret::confusionMatrix(d$y_catfn_b, d$x_c)
+
+
+metrics_boot <- data.frame(
+  method = "New approach",
+  optimal_cutpoint = round(xintercept, 3),
+  sensitivity = x["Sensitivity", "Estim."],
+  sensitivity_low = x["Sensitivity", "Low.lim(95%)"],
+  sensitivity_high = x["Sensitivity", "Up.lim(95%)"],
+  
+  specificity = x["Specificity", "Estim."],
+  specificity_low = x["Specificity", "Low.lim(95%)"],
+  specificity_high = x["Specificity", "Up.lim(95%)"],
+  
+  ppv = x["Pos.Pred.Val.", "Estim."],
+  ppv_low = x["Pos.Pred.Val.", "Low.lim(95%)"],
+  ppv_high = x["Pos.Pred.Val.", "Up.lim(95%)"],
+  
+  npv = x["Neg.Pred.Val.", "Estim."],
+  npv_low = x["Neg.Pred.Val.", "Low.lim(95%)"],
+  npv_high = x["Neg.Pred.Val.", "Up.lim(95%)"],
+  
+  accuracy = x["Accuracy", "Estim."],
+  accuracy_low = x["Accuracy", "Low.lim(95%)"],
+  accuracy_high = x["Accuracy", "Up.lim(95%)"]
+)
+
+print(metrics_boot)
+```
+
+
+
+
+<!-- #### Youden Index -->
+
+<!-- ```{r echo=FALSE, warning=FALSE, message=FALSE, cache=FALSE} -->
+<!-- t_tot <- sum(table(d$x_c)[c("Disease")])/nrow(d) -->
+<!-- #i el calculat amb la funció -->
+<!-- k1 <- filter(d, x_c%in%c("Disease"))$y_pred -->
+<!-- k2 <- filter(d, x_c%in%c("Non-disease"))$y_pred -->
+<!-- rho<- t_tot -->
+<!-- library(ThresholdROC) -->
+<!-- t <- thres2(k1, k2, rho, na.rm=TRUE, method="equal", ci.method="boot", extra.info=TRUE) -->
+<!-- cutoff <- t$T$thres -->
+<!-- ``` -->
+
+<!-- #### Cut-off and density function -->
+<!-- ```{r echo=FALSE, warning=FALSE, message=FALSE, cache=FALSE} -->
+<!-- x_outcome <-quantile(d$y_pred,probs = seq(0,1,0.01),na.rm=T) -->
+
+<!-- ai <- c() -->
+<!-- bi <- c() -->
+<!-- val <- c() -->
+<!-- hr <- c() -->
+<!-- p1x <- c() -->
+<!-- p2x <- c() -->
+<!-- pvalue <- c() -->
+<!-- br <- c() -->
+
+<!-- for(i in x_outcome){ -->
+<!--     d$y <- cut(d$y_pred, breaks = c(-Inf,i, Inf)) -->
+<!--     if(all(table(d$y, d$x)>1)){ -->
+<!--     m <- glm(x~y,data=d, family=poisson(link = "log")) -->
+<!--     l <- summary(m) -->
+<!--     pvalue <- c(pvalue, l$coefficients[2,4]) -->
+<!--     ai<-c(ai,AIC(m)) -->
+<!--     bi <- c(bi, BIC(m)) -->
+<!--     val <- c(val,i) -->
+<!--     h <- exp(l$coefficients[2,1]) -->
+<!--     p1 <- round(exp(confint(m))[2,1],2) -->
+<!--     p2 <- round(exp(confint(m))[2,1],2) -->
+<!--     hr <- c(hr,h) -->
+<!--     p1x <- c(p1x, p1) -->
+<!--     p2x <- c(p2x, p2) -->
+<!--     br <- c(br, BrierScore(m)) -->
+<!--     } -->
+<!-- } -->
+
+<!-- d2 <- data.frame(val,ai,bi, hr, p1x,p2x,pvalue,br) -->
+<!-- m <- min(d2$pvalue) -->
+<!-- coffor <- d2[d2$pvalue==m, "val"][1] -->
+
+
+<!-- g <- ggplot(d2,aes(x=val, y=hr))+ -->
+<!--   geom_line()+ -->
+<!--   geom_ribbon(aes(ymin = p1x, ymax =p2x), alpha = 0.1)+ -->
+<!--   geom_hline(yintercept=0, col="red")+ -->
+<!--   geom_vline(data=data.frame(x=cutoff),aes(xintercept=x, color="blue"),show_guide=TRUE)+ -->
+<!--   geom_vline(data=data.frame(x=coffor),aes(xintercept=x, color="orange"),show_guide=TRUE)+ -->
+<!--   xlab("Value of predictor")+ylab("RR logistic model") -->
+<!-- g+scale_color_manual("Cut-off values", values=c(blue="blue",orange="orange"), -->
+<!--                      labels=c("Youden Index", "RR", "Brier"))+ -->
+<!--   theme_bw() -->
+<!-- ``` -->
+&nbsp; 
+&nbsp; 
+
+##### Expected value 𝐸[𝑋]
+```{r echo=FALSE, warning=FALSE, message=FALSE, cache=FALSE}
+
+xintercept=mean(p$V1[p$V1!="Inf"])
+
+#construim dicotòmica
+d$y_cat_b <- ifelse(d$y_pred>xintercept, "Positive", "Negative")
+
+#construim la taula
+tab_b <- table(d$y_cat_b, d$x)
+tab_b <- tab_b[c(2,1),c(2,1)]
+x <- diagnostic(tab_b)
+```
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, cache=FALSE}
+y <- epiR::epi.tests(tab_b)
+y
+```
+&nbsp; 
+
+The diagnostic indices taking `r round(xintercept,3)` as the cut-off point are as follows 
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, cache=FALSE}
+kable(round(x[c(1:4,9),],3), caption = "Predictor", align = "l") %>%
+ kable_styling(bootstrap_options = c("striped","hover"))
+
+### Matriz de confusión (paquete caret) - https://rdrr.io/cran/caret/man/confusionMatrix.html
+d$y_catfn_b <- factor(d$y_cat_b,
+                   levels=c("Positive", "Negative"),
+                   labels=c("Non-disease", "Disease"))
+machine_matriz <- caret::confusionMatrix(d$y_catfn_b, d$x_c)
+
+
+metrics_boot_expect <- data.frame(
+  method = "New approach: Expected value",
+  optimal_cutpoint = round(xintercept, 3),
+  sensitivity = x["Sensitivity", "Estim."],
+  sensitivity_low = x["Sensitivity", "Low.lim(95%)"],
+  sensitivity_high = x["Sensitivity", "Up.lim(95%)"],
+  
+  specificity = x["Specificity", "Estim."],
+  specificity_low = x["Specificity", "Low.lim(95%)"],
+  specificity_high = x["Specificity", "Up.lim(95%)"],
+  
+  ppv = x["Pos.Pred.Val.", "Estim."],
+  ppv_low = x["Pos.Pred.Val.", "Low.lim(95%)"],
+  ppv_high = x["Pos.Pred.Val.", "Up.lim(95%)"],
+  
+  npv = x["Neg.Pred.Val.", "Estim."],
+  npv_low = x["Neg.Pred.Val.", "Low.lim(95%)"],
+  npv_high = x["Neg.Pred.Val.", "Up.lim(95%)"],
+  
+  accuracy = x["Accuracy", "Estim."],
+  accuracy_low = x["Accuracy", "Low.lim(95%)"],
+  accuracy_high = x["Accuracy", "Up.lim(95%)"]
+)
+```
+
+&nbsp; 
+&nbsp; 
+
+
+##### Maximum density
+```{r echo=FALSE, warning=FALSE, message=FALSE, cache=FALSE}
+
+# x con mayor densidad 
+xintercept <- maximlocal_x[which.max(maximlocal_y)]
+
+
+#construim dicotòmica
+d$y_cat_b <- ifelse(d$y_pred>xintercept, "Positive", "Negative")
+
+#construim la taula
+tab_b <- table(d$y_cat_b, d$x)
+tab_b <- tab_b[c(2,1),c(2,1)]
+x <- diagnostic(tab_b)
+```
+
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, cache=FALSE}
+y <- epiR::epi.tests(tab_b)
+y
+```
+&nbsp; 
+
+The diagnostic indices taking `r round(xintercept,3)` as the cut-off point are as follows 
+
+```{r echo=FALSE, warning=FALSE, message=FALSE, cache=FALSE}
+kable(round(x[c(1:4,9),],3), caption = "Predictor", align = "l") %>%
+ kable_styling(bootstrap_options = c("striped","hover"))
+
+### Matriz de confusión (paquete caret) - https://rdrr.io/cran/caret/man/confusionMatrix.html
+d$y_catfn_b <- factor(d$y_cat_b,
+                   levels=c("Positive", "Negative"),
+                   labels=c("Non-disease", "Disease"))
+machine_matriz <- caret::confusionMatrix(d$y_catfn_b, d$x_c)
+
+
+metrics_boot_maxdens <- data.frame(
+  method = "New approach: Maximum density",
+  optimal_cutpoint = round(xintercept, 5),
+  sensitivity = x["Sensitivity", "Estim."],
+  sensitivity_low = x["Sensitivity", "Low.lim(95%)"],
+  sensitivity_high = x["Sensitivity", "Up.lim(95%)"],
+  
+  specificity = x["Specificity", "Estim."],
+  specificity_low = x["Specificity", "Low.lim(95%)"],
+  specificity_high = x["Specificity", "Up.lim(95%)"],
+  
+  ppv = x["Pos.Pred.Val.", "Estim."],
+  ppv_low = x["Pos.Pred.Val.", "Low.lim(95%)"],
+  ppv_high = x["Pos.Pred.Val.", "Up.lim(95%)"],
+  
+  npv = x["Neg.Pred.Val.", "Estim."],
+  npv_low = x["Neg.Pred.Val.", "Low.lim(95%)"],
+  npv_high = x["Neg.Pred.Val.", "Up.lim(95%)"],
+  
+  accuracy = x["Accuracy", "Estim."],
+  accuracy_low = x["Accuracy", "Low.lim(95%)"],
+  accuracy_high = x["Accuracy", "Up.lim(95%)"]
+)
+```
+
+&nbsp; 
+&nbsp; 
+
+
+### Youden's J statistic
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+youden_res <- optimal.cutpoints(
+  X = "y_pred",
+  status = "x", 
+  tag.healthy = 0,
+  methods = "Youden",
+  data = d_cut, 
+  ci.fit = TRUE,
+  conf.level = 0.95,
+  trace = FALSE
+)
+
+
+summary(youden_res)
+
+# Metrics results
+opt_youden <- summary(youden_res)$Youden$Global$optimal.cutoff
+
+cutoff_youden <- opt_youden$cutoff
+
+se_youden<-opt_youden$Se
+sp_youden<-opt_youden$Sp
+ppv_youden<-opt_youden$PPV
+npv_youden<-opt_youden$NPV
+
+# Càlculs CI
+sensitivity <- se_youden[1, "Value"]
+sensitivity_low <-se_youden[1, "ll"]
+sensitivity_high <- se_youden[1, "ul"]
+
+specificity <- sp_youden[1, "Value"]
+specificity_low <- sp_youden[1, "ll"]
+specificity_high <- sp_youden[1, "ul"]
+  
+ppv <- ppv_youden[1, "Value"]
+ppv_low <- ppv_youden[1, "ll"]
+ppv_high <- ppv_youden[1, "ul"]
+  
+npv <- npv_youden[1, "Value"]
+npv_low <- npv_youden[1, "ll"]
+npv_high <- npv_youden[1, "ul"]
+
+
+
+# Classification
+
+# Confusion matrix
+d$y_cat <- ifelse(d$y_pred >= cutoff_youden, "Predicted disease", "Predicted non-disease")
+tab <- table(d$y_cat, d$x_c)
+tab <- tab[,c(1,2)]
+
+kable(tab, caption = "Contingency Table - Youden", align = "c") %>%
+   kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+                 full_width = F, position = "center")
+
+# Diagnostic
+diag <- epi.tests(tab)
+diag
+
+
+# Accuracy
+correct<-sum(tab[1,1], tab[2,2])
+
+total <- sum(tab)
+
+acc_youden <- as.numeric(correct/total)
+ci_acc <- binom.test(correct, total, conf.level = 0.95)$conf.int
+
+# Metrics
+metrics_youden <- data.frame(
+  method = "Youden",
+  optimal_cutpoint = cutoff_youden,
+  
+  sensitivity = sensitivity,
+  sensitivity_low = sensitivity_low,
+  sensitivity_high = sensitivity_high,
+
+  specificity = specificity,
+  specificity_low = specificity_low,
+  specificity_high = specificity_high,
+
+  ppv = ppv,
+  ppv_low = ppv_low,
+  ppv_high = ppv_high,
+
+  npv = npv,
+  npv_low = npv_low,
+  npv_high = npv_high,
+
+  accuracy = acc_youden,
+  accuracy_low = ci_acc[1],
+  accuracy_high = ci_acc[2]
+)
+
+
+metrics_t<-metrics_youden %>%
+   select(method, optimal_cutpoint, sensitivity, sensitivity_low, sensitivity_high,
+          specificity, specificity_low, specificity_high, ppv, ppv_low, ppv_high, npv, npv_low, npv_high, accuracy, accuracy_low, accuracy_high) %>%
+   gt() %>%
+   tab_header(title = "Optimal Cut-off Point Metrics - Youden") %>%
+   fmt_number(
+     columns = where(is.numeric),
+     decimals = 3
+   )
+```
+
+&nbsp; 
+&nbsp; 
+
+### Euclidean distance
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+# Se and Sp
+Se <- myroc$sensitivities
+Sp <- myroc$specificities
+thres <- myroc$thresholds
+
+eucl_res <- sqrt((1 - Se)^2 + (1 - Sp)^2)
+best_index <- which.min(eucl_res)
+
+optimal_threshold <- thres[best_index]
+
+
+# Classification
+
+# Confusion matrix
+d$y_cat <- ifelse(d$y_pred <= optimal_threshold, "Predicted non-disease", "Predicted disease")
+
+tab <- table(d$y_cat, d$x_c)
+tab <- tab[,c(1,2)]
+
+kable(tab, caption = "Contingency Table - Youden", align = "c") %>%
+   kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+                 full_width = F, position = "center")
+
+# Diagnostic
+diag <- epi.tests(tab)
+diag
+
+metrics<-diag[["detail"]]
+
+
+# Càlcul CI
+# PPV, NPV, Acc
+se <- metrics[metrics$statistic == "se", ]
+sp <- metrics[metrics$statistic == "sp", ]
+ppv  <- metrics[metrics$statistic == "pv.pos", ]
+npv  <- metrics[metrics$statistic == "pv.neg", ]
+acc  <- metrics[metrics$statistic == "diag.ac", ]
+
+
+# Metrics
+metrics_eucl <- data.frame(
+  method = "Euclidean distance",
+  optimal_cutpoint = optimal_threshold,
+  
+  sensitivity = se$est,
+  sensitivity_low = se$lower,
+  sensitivity_high = se$upper,
+  
+  specificity = sp$est,
+  specificity_low = sp$lower,
+  specificity_high = sp$upper,
+  
+  ppv = ppv$est,
+  ppv_low = ppv$lower,
+  ppv_high = ppv$upper,
+  
+  npv = npv$est,
+  npv_low = npv$lower,
+  npv_high = npv$upper,
+  
+  accuracy = acc$est,
+  accuracy_low = acc$lower,
+  accuracy_high = acc$upper
+)
+
+
+
+metrics_t<-metrics_eucl %>%
+   select(method, optimal_cutpoint, sensitivity, sensitivity_low, sensitivity_high,
+          specificity, specificity_low, specificity_high, ppv, ppv_low, ppv_high, npv, npv_low, npv_high, accuracy, accuracy_low, accuracy_high) %>%
+   gt() %>%
+   tab_header(title = "Optimal Cut-off Point Metrics - Euclidean distance") %>%
+   fmt_number(
+     columns = where(is.numeric),
+     decimals = 3
+   )
+
+
+```
+
+&nbsp; 
+&nbsp; 
+
+### Maximum product of Se and Sp
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+mprod_res <- optimal.cutpoints(
+  X = "y_pred",
+  status = "x", 
+  tag.healthy = 0,
+  methods = "MaxProdSpSe",
+  data = d_cut, 
+  ci.fit = TRUE,
+  conf.level = 0.95,
+  trace = FALSE
+)
+
+
+
+summary(mprod_res)
+
+# Results
+opt_mprod <- summary(mprod_res)$MaxProdSpSe$Global$optimal.cutoff
+
+cutoff_mprod <- opt_mprod$cutoff
+
+se_mprod<-opt_mprod$Se
+sp_mprod<-opt_mprod$Sp
+ppv_mprod<-opt_mprod$PPV
+npv_mprod<-opt_mprod$NPV
+
+# Càlculs CI
+sensitivity <- se_mprod[1, "Value"]
+sensitivity_low <-se_mprod[1, "ll"]
+sensitivity_high <- se_mprod[1, "ul"]
+
+specificity <- sp_mprod[1, "Value"]
+specificity_low <- sp_mprod[1, "ll"]
+specificity_high <- sp_mprod[1, "ul"]
+  
+ppv <- ppv_mprod[1, "Value"]
+ppv_low <- ppv_mprod[1, "ll"]
+ppv_high <- ppv_mprod[1, "ul"]
+  
+npv <- npv_mprod[1, "Value"]
+npv_low <- npv_mprod[1, "ll"]
+npv_high <- npv_mprod[1, "ul"]
+
+
+
+# Classification
+
+# Confusion matrix
+d$y_cat <- ifelse(d$y_pred >= cutoff_mprod, "Predicted disease", "Predicted non-disease")
+
+
+tab <- table(d$y_cat, d$x_c)
+tab <- tab[,c(1,2)]
+
+kable(tab, caption = "Contingency Table - Maximum product Se*Sp", align = "c") %>%
+   kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+                 full_width = F, position = "center")
+
+# Diagnostic
+diag <- epi.tests(tab)
+diag
+
+
+# Accuracy
+correct<-sum(tab[1,1], tab[2,2])
+
+total <- sum(tab)
+
+acc_mprod <- as.numeric(correct/total)
+ci_acc <- binom.test(correct, total, conf.level = 0.95)$conf.int
+
+# Metrics
+metrics_mprod <- data.frame(
+  method = "Maximum product Se*Sp",
+  optimal_cutpoint = cutoff_mprod,
+  
+  sensitivity = sensitivity,
+  sensitivity_low = sensitivity_low,
+  sensitivity_high = sensitivity_high,
+
+  specificity = specificity,
+  specificity_low = specificity_low,
+  specificity_high = specificity_high,
+
+  ppv = ppv,
+  ppv_low = ppv_low,
+  ppv_high = ppv_high,
+
+  npv = npv,
+  npv_low = npv_low,
+  npv_high = npv_high,
+
+  accuracy = acc_mprod,
+  accuracy_low = ci_acc[1],
+  accuracy_high = ci_acc[2]
+)
+
+
+metrics_t<-metrics_mprod %>%
+   select(method, optimal_cutpoint, sensitivity, sensitivity_low, sensitivity_high,
+          specificity, specificity_low, specificity_high, ppv, ppv_low, ppv_high, npv, npv_low, npv_high, accuracy, accuracy_low, accuracy_high) %>%
+   gt() %>%
+   tab_header(title = "Optimal Cut-off Point Metrics - Max. product Se*Sp") %>%
+   fmt_number(
+     columns = where(is.numeric),
+     decimals = 3
+   )
+
+```
+&nbsp; 
+&nbsp; 
+
+### Index of union (IU) 
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+#Càlcul AUC
+auc_val <- as.numeric(auc(myroc)) 
+
+
+roc_df <- data.frame( 
+  threshold = myroc$thresholds, 
+  sens = myroc$sensitivities, 
+  spec = myroc$specificities 
+
+) 
+
+#Càlcul IU
+roc_df$IU <- abs(roc_df$sens - auc_val) + abs(roc_df$spec - auc_val) 
+best_iu <- roc_df[which.min(roc_df$IU), ] 
+
+
+
+# Classification
+
+# Confusion matrix
+d$y_cat <- ifelse(d$y_pred >= best_iu$threshold, "Predicted disease", "Predicted non-disease")
+
+
+tab <- table(d$y_cat, d$x_c)
+tab <- tab[,c(1,2)]
+
+kable(tab, caption = "Contingency Table - Index of Union", align = "c") %>%
+   kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+                 full_width = F, position = "center")
+
+# Diagnostic
+diag <- epi.tests(tab)
+diag
+
+
+x_iu<-diagnostic(tab)
+
+# Càlcul mètriques amb CI
+se <- x_iu["Sensitivity", ]
+sp <- x_iu["Specificity", ]
+ppv  <- x_iu["Pos.Pred.Val.", ]
+npv  <- x_iu["Neg.Pred.Val.", ]
+acc  <- x_iu["Accuracy", ]
+
+
+# Metrics
+metrics_iu <- data.frame(
+  method = "Index of Union (IU)",
+  optimal_cutpoint = best_iu$threshold,
+  
+  sensitivity = se[1],
+  sensitivity_low = se[2],
+  sensitivity_high = se[3],
+  
+  specificity = sp[1],
+  specificity_low = sp[2],
+  specificity_high = sp[3],
+  
+  ppv = ppv[1],
+  ppv_low = ppv[2],
+  ppv_high = ppv[3],
+  
+  npv = npv[1],
+  npv_low = npv[2],
+  npv_high = npv[3],
+  
+  accuracy = acc[1],
+  accuracy_low = acc[2],
+  accuracy_high = acc[3]
+)
+
+
+metrics_t<-metrics_iu %>%
+   select(method, optimal_cutpoint, sensitivity, sensitivity_low, sensitivity_high,
+          specificity, specificity_low, specificity_high, ppv, ppv_low, ppv_high, npv, npv_low, npv_high, accuracy, accuracy_low, accuracy_high) %>%
+   gt() %>%
+   tab_header(title = "Optimal Cut-off Point Metrics - Index of Union") %>%
+   fmt_number(
+     columns = where(is.numeric),
+     decimals = 3
+   )
+
+```
+
+&nbsp; 
+&nbsp; 
+
+
+
+
+### Cost approach
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+cost_ap_res <- optimal.cutpoints(
+  X = "y_pred",
+  status = "x", 
+  tag.healthy = 0,
+  methods = "CB",
+  data = d_cut, 
+  control = control.cutpoints(
+  costs.ratio = 5), # It costs 5 times more to predict a FN than a FP
+  ci.fit = TRUE,
+  conf.level = 0.95,
+  trace = FALSE
+)
+
+summary(cost_ap_res)
+
+# Results
+opt_cb <- summary(cost_ap_res)$CB$Global$optimal.cutoff
+
+cutoff_cb <- opt_cb$cutoff
+
+se_cb<-opt_cb$Se
+sp_cb<-opt_cb$Sp
+ppv_cb<-opt_cb$PPV
+npv_cb<-opt_cb$NPV
+
+# Càlculs CI
+sensitivity <- se_cb[1, "Value"]
+sensitivity_low <-se_cb[1, "ll"]
+sensitivity_high <- se_cb[1, "ul"]
+
+specificity <- sp_cb[1, "Value"]
+specificity_low <- sp_cb[1, "ll"]
+specificity_high <- sp_cb[1, "ul"]
+  
+ppv <- ppv_cb[1, "Value"]
+ppv_low <- ppv_cb[1, "ll"]
+ppv_high <- ppv_cb[1, "ul"]
+  
+npv <- npv_cb[1, "Value"]
+npv_low <- npv_cb[1, "ll"]
+npv_high <- npv_cb[1, "ul"]
+
+
+
+# Classification
+
+# Confusion matrix
+d$y_cat <- ifelse(d$y_pred >= cutoff_cb, "Predicted disease", "Predicted non-disease")
+
+
+tab <- table(d$y_cat, d$x_c)
+tab <- tab[,c(1,2)]
+
+kable(tab, caption = "Contingency Table - Cost approach", align = "c") %>%
+   kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+                 full_width = F, position = "center")
+
+# Diagnostic
+diag <- epi.tests(tab)
+diag
+
+
+# Accuracy
+correct<-sum(tab[1,1], tab[2,2])
+
+total <- sum(tab)
+
+acc_cb <- as.numeric(correct/total)
+ci_acc <- binom.test(correct, total, conf.level = 0.95)$conf.int
+
+# Metrics
+metrics_cost <- data.frame(
+  method = "Cost approach",
+  optimal_cutpoint = cutoff_cb,
+  
+  sensitivity = sensitivity,
+  sensitivity_low = sensitivity_low,
+  sensitivity_high = sensitivity_high,
+
+  specificity = specificity,
+  specificity_low = specificity_low,
+  specificity_high = specificity_high,
+
+  ppv = ppv,
+  ppv_low = ppv_low,
+  ppv_high = ppv_high,
+
+  npv = npv,
+  npv_low = npv_low,
+  npv_high = npv_high,
+
+  accuracy = acc_cb,
+  accuracy_low = ci_acc[1],
+  accuracy_high = ci_acc[2]
+)
+
+metrics_t<-metrics_cost %>%
+   select(method, optimal_cutpoint, sensitivity, sensitivity_low, sensitivity_high,
+          specificity, specificity_low, specificity_high, ppv, ppv_low, ppv_high, npv, npv_low, npv_high, accuracy, accuracy_low, accuracy_high) %>%
+   gt() %>%
+   tab_header(title = "Optimal Cut-off Point Metrics - Cost approach") %>%
+   fmt_number(
+     columns = where(is.numeric),
+     decimals = 3
+   )
+
+```
+
+&nbsp; 
+&nbsp; 
+
+
+
+
+
+
+### Missclassification cost
+
+(We chose the first cut-point because )
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+misscost_res <- optimal.cutpoints(
+  X = "y_pred",
+  status = "x", 
+  tag.healthy = 0,
+  methods = "MCT",
+  data = d_cut, 
+  ci.fit = TRUE,
+  conf.level = 0.95,
+  trace = FALSE
+)
+
+
+summary(misscost_res)
+
+# Results
+opt_misscost <- summary(misscost_res)$MCT$Global$optimal.cutoff
+
+cutoff_misscost <- opt_misscost$cutoff[1]
+
+se_misscost<-opt_misscost$Se
+sp_misscost<-opt_misscost$Sp
+ppv_misscost<-opt_misscost$PPV
+npv_misscost<-opt_misscost$NPV
+
+# Càlculs CI
+sensitivity <- se_misscost[1, "Value"]
+sensitivity_low <-se_misscost[1, "ll"]
+sensitivity_high <- se_misscost[1, "ul"]
+
+specificity <- sp_misscost[1, "Value"]
+specificity_low <- sp_misscost[1, "ll"]
+specificity_high <- sp_misscost[1, "ul"]
+  
+ppv <- ppv_misscost[1, "Value"]
+ppv_low <- ppv_misscost[1, "ll"]
+ppv_high <- ppv_misscost[1, "ul"]
+  
+npv <- npv_misscost[1, "Value"]
+npv_low <- npv_misscost[1, "ll"]
+npv_high <- npv_misscost[1, "ul"]
+
+
+
+# Classification
+
+# Confusion matrix
+d$y_cat <- ifelse(d$y_pred >= cutoff_misscost, "Predicted disease", "Predicted non-disease")
+
+
+tab <- table(d$y_cat, d$x_c)
+tab <- tab[,c(1,2)]
+
+kable(tab, caption = "Contingency Table - Missclassification cost", align = "c") %>%
+   kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+                 full_width = F, position = "center")
+
+# Diagnostic
+diag <- epi.tests(tab)
+diag
+
+
+# Accuracy
+correct<-sum(tab[1,1], tab[2,2])
+
+total <- sum(tab)
+
+acc_misscost <- as.numeric(correct/total)
+ci_acc <- binom.test(correct, total, conf.level = 0.95)$conf.int
+
+# Metrics
+metrics_misscost <- data.frame(
+  method = "Missclassification cost",
+  optimal_cutpoint = cutoff_misscost,
+  
+  sensitivity = sensitivity,
+  sensitivity_low = sensitivity_low,
+  sensitivity_high = sensitivity_high,
+
+  specificity = specificity,
+  specificity_low = specificity_low,
+  specificity_high = specificity_high,
+
+  ppv = ppv,
+  ppv_low = ppv_low,
+  ppv_high = ppv_high,
+
+  npv = npv,
+  npv_low = npv_low,
+  npv_high = npv_high,
+
+  accuracy = acc_misscost,
+  accuracy_low = ci_acc[1],
+  accuracy_high = ci_acc[2]
+)
+
+
+
+metrics_t<-metrics_misscost %>%
+   select(method, optimal_cutpoint, sensitivity, sensitivity_low, sensitivity_high,
+          specificity, specificity_low, specificity_high, ppv, ppv_low, ppv_high, npv, npv_low, npv_high, accuracy, accuracy_low, accuracy_high) %>%
+   gt() %>%
+   tab_header(title = "Optimal Cut-off Point Metrics - Missclassification cost") %>%
+   fmt_number(
+     columns = where(is.numeric),
+     decimals = 3
+   )
+
+```
+
+&nbsp; 
+&nbsp; 
+
+### Diagnosis Odds Ratio (DOR)
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+dor_res <- optimal.cutpoints(
+  X = "y_pred",
+  status = "x", 
+  tag.healthy = 0,
+  methods = "MaxDOR",
+  data = d_cut, 
+  ci.fit = TRUE,
+  conf.level = 0.95,
+  trace = FALSE
+)
+
+summary(dor_res)
+
+# Results
+opt_dor <- summary(dor_res)$MaxDOR$Global$optimal.cutoff
+
+cutoff_dor <- opt_dor$cutoff
+
+se_dor<-opt_dor$Se
+sp_dor<-opt_dor$Sp
+ppv_dor<-opt_dor$PPV
+npv_dor<-opt_dor$NPV
+
+# Càlculs CI
+sensitivity <- se_dor[1, "Value"]
+sensitivity_low <-se_dor[1, "ll"]
+sensitivity_high <- se_dor[1, "ul"]
+
+specificity <- sp_dor[1, "Value"]
+specificity_low <- sp_dor[1, "ll"]
+specificity_high <- sp_dor[1, "ul"]
+  
+ppv <- ppv_dor[1, "Value"]
+ppv_low <- ppv_dor[1, "ll"]
+ppv_high <- ppv_dor[1, "ul"]
+  
+npv <- npv_dor[1, "Value"]
+npv_low <- npv_dor[1, "ll"]
+npv_high <- npv_dor[1, "ul"]
+
+
+
+# Classification
+
+# Confusion matrix
+d$y_cat <- ifelse(d$y_pred >= cutoff_dor, "Predicted disease", "Predicted non-disease")
+
+
+tab <- table(d$y_cat, d$x_c)
+tab <- tab[,c(1,2)]
+
+kable(tab, caption = "Contingency Table - Diagnostic Odds Ratio", align = "c") %>%
+   kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+                 full_width = F, position = "center")
+
+# Diagnostic
+diag <- epi.tests(tab)
+diag
+
+
+# Accuracy
+correct<-sum(tab[1,1], tab[2,2])
+
+total <- sum(tab)
+
+acc_dor <- as.numeric(correct/total)
+ci_acc <- binom.test(correct, total, conf.level = 0.95)$conf.int
+
+# Metrics
+metrics_dor <- data.frame(
+  method = "Diagnostic Odds Ratio",
+  optimal_cutpoint = cutoff_dor,
+  
+  sensitivity = sensitivity,
+  sensitivity_low = sensitivity_low,
+  sensitivity_high = sensitivity_high,
+
+  specificity = specificity,
+  specificity_low = specificity_low,
+  specificity_high = specificity_high,
+
+  ppv = ppv,
+  ppv_low = ppv_low,
+  ppv_high = ppv_high,
+
+  npv = npv,
+  npv_low = npv_low,
+  npv_high = npv_high,
+
+  accuracy = acc_dor,
+  accuracy_low = ci_acc[1],
+  accuracy_high = ci_acc[2]
+)
+
+
+metrics_t<-metrics_dor %>%
+   select(method, optimal_cutpoint, sensitivity, sensitivity_low, sensitivity_high,
+          specificity, specificity_low, specificity_high, ppv, ppv_low, ppv_high, npv, npv_low, npv_high, accuracy, accuracy_low, accuracy_high) %>%
+   gt() %>%
+   tab_header(title = "Optimal Cut-off Point Metrics - Diagnostic Odds Ratio") %>%
+   fmt_number(
+     columns = where(is.numeric),
+     decimals = 3
+   )
+
+```
+
+&nbsp; 
+&nbsp; 
+
+### Min p-value
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+minpvalue_res <- optimal.cutpoints(
+  X = "y_pred", 
+  status = "x",
+  tag.healthy = 0, 
+  methods = "MinPvalue", 
+  data = d_cut,
+  ci.fit = TRUE, 
+  conf.level = 0.95, 
+  trace = FALSE)
+
+
+summary(minpvalue_res)
+
+# Results
+opt_minp <- summary(minpvalue_res)$MinPvalue$Global$optimal.cutoff
+
+cutoff_minp <- opt_minp$cutoff
+
+se_minp<-opt_minp$Se
+sp_minp<-opt_minp$Sp
+ppv_minp<-opt_minp$PPV
+npv_minp<-opt_minp$NPV
+
+
+# Càlculs CI
+sensitivity <- se_minp[1, "Value"]
+sensitivity_low <-se_minp[1, "ll"]
+sensitivity_high <- se_minp[1, "ul"]
+
+specificity <- sp_minp[1, "Value"]
+specificity_low <- sp_minp[1, "ll"]
+specificity_high <- sp_minp[1, "ul"]
+  
+ppv <- ppv_minp[1, "Value"]
+ppv_low <- ppv_minp[1, "ll"]
+ppv_high <- ppv_minp[1, "ul"]
+  
+npv <- npv_minp[1, "Value"]
+npv_low <- npv_minp[1, "ll"]
+npv_high <- npv_minp[1, "ul"]
+
+
+# Classification
+
+# Confusion matrix
+d$y_cat <- ifelse(d$y_pred >= cutoff_minp, "Predicted disease", "Predicted non-disease")
+
+
+tab <- table(d$y_cat, d$x_c)
+tab <- tab[,c(1,2)]
+
+kable(tab, caption = "Contingency Table - Min p-value", align = "c") %>%
+   kable_styling(bootstrap_options = c("striped", "hover", "condensed", "responsive"),
+                 full_width = F, position = "center")
+
+# Diagnostic
+diag <- epi.tests(tab)
+diag
+
+
+# Accuracy
+correct<-sum(tab[1,1], tab[2,2])
+
+total <- sum(tab)
+
+acc <- as.numeric(correct/total)
+ci_acc <- binom.test(correct, total, conf.level = 0.95)$conf.int
+
+
+
+# Metrics
+metrics_minp <- data.frame(
+  method = "Min p-value",
+  optimal_cutpoint = cutoff_minp,
+  
+  sensitivity = sensitivity,
+  sensitivity_low = sensitivity_low,
+  sensitivity_high = sensitivity_high,
+  
+  specificity = specificity,
+  specificity_low = specificity_low,
+  specificity_high = specificity_high,
+  
+  ppv = ppv,
+  ppv_low = ppv_low,
+  ppv_high = ppv_high,
+  
+  npv = npv,
+  npv_low = npv_low,
+  npv_high = npv_high,
+  
+  accuracy = acc,
+  accuracy_low = ci_acc[1],
+  accuracy_high = ci_acc[2]
+)
+
+metrics_t<-metrics_minp %>%
+   select(method, optimal_cutpoint, sensitivity, sensitivity_low, sensitivity_high,
+          specificity, specificity_low, specificity_high, ppv, ppv_low, ppv_high, npv, npv_low, npv_high, accuracy, accuracy_low, accuracy_high) %>%
+   gt() %>%
+   tab_header(title = "Optimal Cut-off Point Metrics - Min p-value") %>%
+   fmt_number(
+     columns = where(is.numeric),
+     decimals = 3
+   )
+
+```
+&nbsp; 
+&nbsp; 
+
+
+## Comparison table
+
+`r tab_cap("Comparison of Cut-off Methods: Moderate scenario")`
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+
+tab_cutoffs <- dplyr::bind_rows(
+  metrics_boot_expect |> mutate(method = "New approach: Expected value"),
+  metrics_boot_maxdens |> mutate(method = "New approach: Maximum density"),
+  metrics_youden |> mutate(method = "Youden's J statistic"),
+  metrics_eucl |> mutate(method = "Euclidean distance"),
+  metrics_mprod |> mutate(method = "Max. product Se*Sp"),
+  metrics_iu |> mutate(method = "Index of Union"),
+  metrics_cost |> mutate(method = "Cost approach"),
+  metrics_misscost |> mutate(method = "Missclassification cost"),
+  metrics_dor |> mutate(method = "DOR"),
+  metrics_minp |> mutate(method = "Min p-value")
+)
+
+
+
+# Format CI
+format_ci <- function(value, low, high) {
+  if (is.na(low) | is.na(high)) {
+    return(sprintf("%.2f", value))
+  } else {
+    return(sprintf("%.2f [%.2f; %.2f]", value, low, high))
+  }
+}
+
+# Metrics [CI]
+tab_cutoffs_formatted <- tab_cutoffs |>
+  mutate(
+    Cutoff = optimal_cutpoint, 
+    Sensitivity = mapply(format_ci, sensitivity, sensitivity_low, sensitivity_high),
+    Specificity = mapply(format_ci, specificity, specificity_low, specificity_high),
+    PPV = mapply(format_ci, ppv, ppv_low, ppv_high),
+    NPV = mapply(format_ci, npv, npv_low, npv_high),
+    Accuracy = mapply(format_ci, accuracy, accuracy_low, accuracy_high
+  )) |>
+  select(
+    Method = method, 
+    Cutoff,
+    Sensitivity,
+    Specificity,
+    PPV,
+    NPV,
+    Accuracy
+  )
+
+
+# Final comparison table
+library(gt)
+
+tab_cutoffs_formatted |>
+  gt()|>
+  tab_header(
+    title = md("**Comparison of Cut-off Methods**")
+  ) |>
+  cols_label(
+    Method = "Method",
+    Cutoff = "Cut-off point",
+    Sensitivity = "Sensitivity",
+    Specificity = "Specificity",
+    PPV = "PPV",
+    NPV = "NPV",
+    Accuracy = "Accuracy"
+  ) |>
+  tab_style(
+    style = cell_text(weight = "bold"),  
+    locations = cells_column_labels(everything())
+  ) |>
+  tab_style(
+    style = cell_text(weight = "bold"),  
+    locations = cells_body(columns = Method)
+  )
+
+
+
+# Guardar cutoffs
+# method_df <- data.frame(Method = tab_cutoffs_formatted$Method)
+# save(method_df, file = "method_df_moderate_v2.Rdata")
+
+load("method_df_moderate_v2.Rdata")
+
+df <- tab_cutoffs_formatted |> dplyr::distinct(Method, .keep_all = T) |> dplyr::select(Cutoff)
+
+method_df <- method_df|> dplyr::bind_cols(df)
+rownames(method_df)<-NULL
+save(method_df, file = "method_df_moderate_v2.Rdata")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
