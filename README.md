@@ -4,6 +4,14 @@
 
 ## Repository contents:
 - **Readme.md:** Description of the project content.
+  
+- **TFM_LuciaBlanc_2025.pdf**: Final written report of the Master's thesis. It includes:
+  - Introduction and background on cut-off estimation in continuous biomarkers.
+  - A detailed explanation of the proposed method using bootstrapping and log-binomial models.
+  - Methodology of the simulation study, including scenarios with different effect sizes (null, small, moderate).
+  - Comparative results of the proposed method versus classical approaches (Youden’s J, Euclidean distance, etc.).
+  - Discussion of findings, limitations, and future directions.
+
 - **R/.:** Main folder containing all the code developed for the project. It includes:
   - **null_scenario/.:** Contains the code used to simulate and analyze the null scenario, where there is no separation between the diseased and non-diseased groups.
       - bucle_null.R: Loop script used to run the simulations across different seeds.
