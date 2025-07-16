@@ -2,6 +2,8 @@
 ## Final Master's Thesis - Data Science UOC
 ### Lucia Blanc Velázquez
 
+The final master's thesis is title *Assessing a Novel Approach to Cut-off Estimation Using Bootstrapping: A Simulation-Based Study*, where a new method of estimating cut-offs in continuous biomarkers is proposed, combining statistical models with bootstrap resampling techniques and based on a real clinical need, aiming to provide a more robust and flexible statistical solution.
+
 ## Repository contents:
 - **Readme.md:** Description of the project content.
   
